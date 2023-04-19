@@ -2,11 +2,13 @@
 #include <curand.h>
 
 #include <cassert>
+#include <chrono>
 #include <iostream>
 #include <sstream>
 #include <vector>
 
 using namespace std;
+using namespace chrono;
 
 #define CUPRINT(x, ...) \
   { printf("\33[33m(CUDA) " x "\n\33[0m", ##__VA_ARGS__); }
@@ -90,6 +92,19 @@ float reduce_cu(const float *g_idata, int num) {
   return res;
 }
 
+template <unsigned N>
+void test(float *g_idata, size_t num) {
+  int test_num = 10000;
+  // sum up in gpu (warn up)
+  auto sum_cu = reduce_cu<N>(g_idata, num);
+  auto t1 = high_resolution_clock::now();
+  for (int i = 0; i < test_num; ++i) {
+    sum_cu = reduce_cu<N>(g_idata, num);
+  }
+  auto t2 = high_resolution_clock::now();
+  cout << "sum from cuda " << N << ": " << sum_cu << ", time cost: " << duration<double>(t2 - t1).count() << "\n";
+}
+
 int main() {
   const size_t num = 10000;
   float mean = 1.0f, std_dev = 10.0f;
@@ -119,7 +134,7 @@ int main() {
   CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
   cout << "device info: name[" << prop.name << "] max_thd_num[" << prop.maxThreadsPerBlock << "]\n";
 
-  // sum up in gpu
-  auto sum_cu = reduce_cu<1024>(data_cu, num);
-  cout << "sum from cuda: " << sum_cu << "\n";
+  test<256>(data_cu, num);
+  test<512>(data_cu, num);
+  test<1024>(data_cu, num);
 }
